@@ -502,6 +502,11 @@ class ExportPmx(Operator, ExportHelper):
         ],
         default="NONE",
     )
+    create_per_mesh_materials: bpy.props.BoolProperty(
+        name="Create New Material for Each Mesh",
+        description="Create a separate material for each mesh object, even if they share the same material. This ensures materials are not merged during export",
+        default=False,
+    )
     log_level: bpy.props.EnumProperty(
         name="Log level",
         description="Select log level",
@@ -574,6 +579,7 @@ class ExportPmx(Operator, ExportHelper):
             context.scene["mmd_tools_export_pmx_last_overwrite_bone_morphs"] = self.overwrite_bone_morphs_from_action_pose
             context.scene["mmd_tools_export_pmx_last_translate_in_presets"] = self.translate_in_presets
             context.scene["mmd_tools_export_pmx_last_sort_vertices"] = self.sort_vertices
+            context.scene["mmd_tools_export_pmx_last_create_per_mesh_materials"] = self.create_per_mesh_materials
             context.scene["mmd_tools_export_pmx_last_log_level"] = self.log_level
             context.scene["mmd_tools_export_pmx_last_save_log"] = self.save_log
             context.scene["mmd_tools_export_pmx_last_export_curves"] = self.export_curves
@@ -604,6 +610,7 @@ class ExportPmx(Operator, ExportHelper):
                 sort_materials=self.sort_materials,
                 sort_vertices=self.sort_vertices,
                 disable_specular=self.disable_specular,
+                create_per_mesh_materials=self.create_per_mesh_materials,
             )
             self.report({"INFO"}, 'Exported MMD model "%s" to "%s"' % (root.name, self.filepath))
         except:
@@ -737,6 +744,7 @@ class ExportPmxQuick(Operator):
             overwrite_bone_morphs_from_action_pose = scene.get("mmd_tools_export_pmx_last_overwrite_bone_morphs", False)
             translate_in_presets = scene.get("mmd_tools_export_pmx_last_translate_in_presets", False)
             sort_vertices = scene.get("mmd_tools_export_pmx_last_sort_vertices", "NONE")
+            create_per_mesh_materials = scene.get("mmd_tools_export_pmx_last_create_per_mesh_materials", False)
             log_level = scene.get("mmd_tools_export_pmx_last_log_level", "DEBUG")
             save_log = scene.get("mmd_tools_export_pmx_last_save_log", False)
             export_curves = scene.get("mmd_tools_export_pmx_last_export_curves", True)
@@ -789,6 +797,7 @@ class ExportPmxQuick(Operator):
                     sort_materials=sort_materials,
                     sort_vertices=sort_vertices,
                     disable_specular=disable_specular,
+                    create_per_mesh_materials=create_per_mesh_materials,
                 )
                 self.report({"INFO"}, 'Exported MMD model "%s" to "%s"' % (root.name, last_filepath))
             except:

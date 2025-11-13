@@ -120,7 +120,7 @@ class MMDMaterial(bpy.types.PropertyGroup):
         max=1,
         precision=3,
         step=0.1,
-        default=[0.4, 0.4, 0.4],
+        default=[0.5,0.5,0.5 ],
         update=_mmd_material_update_ambient_color,
     )
 
@@ -133,7 +133,7 @@ class MMDMaterial(bpy.types.PropertyGroup):
         max=1,
         precision=3,
         step=0.1,
-        default=[0.8, 0.8, 0.8],
+        default=[1, 1, 1],
         update=_mmd_material_update_diffuse_color,
     )
 
@@ -157,7 +157,7 @@ class MMDMaterial(bpy.types.PropertyGroup):
         max=1,
         precision=3,
         step=0.1,
-        default=[0.625, 0.625, 0.625],
+        default=[0.2, 0.2, 0.2],
         update=_mmd_material_update_specular_color,
     )
 

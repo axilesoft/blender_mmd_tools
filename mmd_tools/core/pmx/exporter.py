@@ -47,10 +47,11 @@ class _Face:
 
 
 class _Mesh:
-    def __init__(self, material_faces, shape_key_names, material_names):
+    def __init__(self, material_faces, shape_key_names, material_names, material_objects=None):
         self.material_faces = material_faces  # dict of {material_index => [face1, face2, ....]}
         self.shape_key_names = shape_key_names
         self.material_names = material_names
+        self.material_objects = material_objects or {}  # dict of {material_index => material_object}
 
 
 class _DefaultMaterial:
@@ -87,6 +88,8 @@ class __PmxExporter:
         self.__translate_in_presets = False
         self.__disable_specular = False
         self.__add_uv_count = 0
+        self.__create_per_mesh_materials = False
+        self.__mesh_name_map = {}  # used for tracking mesh-specific material names
 
     @staticmethod
     def flipUV_V(uv):
@@ -119,17 +122,17 @@ class __PmxExporter:
             for index, mat_faces in sorted(mesh.material_faces.items(), key=lambda x: x[0]):
                 name = mesh.material_names[index]
                 if name not in mat_map:
-                    mat_map[name] = []
-                mat_map[name].append(mat_faces)
+                    mat_map[name] = {'faces': [], 'material': mesh.material_objects.get(index)}
+                mat_map[name]['faces'].append(mat_faces)
 
         sort_vertices = self.__vertex_order_map is not None
         if sort_vertices:
             self.__vertex_order_map.clear()
 
         # export vertices
-        for mat_name, mat_meshes in mat_map.items():
+        for mat_name, mat_data in mat_map.items():
             face_count = 0
-            for mat_faces in mat_meshes:
+            for mat_faces in mat_data['faces']:
                 mesh_vertices = []
                 for face in mat_faces:
                     mesh_vertices.extend(face.vertices)
@@ -201,7 +204,14 @@ class __PmxExporter:
                 for face in mat_faces:
                     self.__model.faces.append([x.index for x in face.vertices])
                 face_count += len(mat_faces)
-            self.__exportMaterial(bpy.data.materials[mat_name], face_count)
+            # Use the stored material object, or look it up by name if not available
+            material = mat_data['material']
+            if material is None:
+                material = bpy.data.materials.get(mat_name)
+                if material is None:
+                    material = self.__getDefaultMaterial()
+            # Pass the custom material name (mat_name) to the exporter
+            self.__exportMaterial(material, face_count, custom_name=mat_name if self.__create_per_mesh_materials else None)
 
         if sort_vertices:
             self.__sortVertices()
@@ -268,11 +278,11 @@ class __PmxExporter:
             logging.info("Copy file %s --> %s", path, dest_path)
             texture.path = dest_path
 
-    def __exportMaterial(self, material, num_faces):
+    def __exportMaterial(self, material, num_faces, custom_name=None):
         p_mat = pmx.Material()
         mmd_mat = material.mmd_material
 
-        p_mat.name = mmd_mat.name_j or material.name
+        p_mat.name = custom_name if custom_name else (mmd_mat.name_j or material.name)
         p_mat.name_e = mmd_mat.name_e
         p_mat.diffuse = list(mmd_mat.diffuse_color) + [mmd_mat.alpha]
         p_mat.ambient = mmd_mat.ambient_color
@@ -1070,6 +1080,37 @@ class __PmxExporter:
         _mat_name = lambda x: x.name if x else self.__getDefaultMaterial().name
         material_names = {i: _mat_name(m) for i, m in enumerate(base_mesh.materials)}
         material_names = {i: material_names.get(i, None) or _mat_name(None) for i in material_faces.keys()}
+        
+        # Store the actual material objects
+        material_objects = {}
+        for i, m in enumerate(base_mesh.materials):
+            if i in material_faces:
+                material_objects[i] = m if m else None
+        
+        # Create unique material names per mesh if option is enabled
+        if self.__create_per_mesh_materials:
+            mesh_obj_name = meshObj.name
+            unique_material_names = {}
+            # Count how many materials this mesh has
+            num_materials = len(material_names)
+            for mat_index, mat_name in material_names.items():
+                # Use mesh name as material name
+                if num_materials == 1:
+                    # If mesh has only one material, just use mesh name
+                    unique_name = mesh_obj_name
+                else:
+                    # If mesh has multiple materials, add index suffix
+                    unique_name = f"{mesh_obj_name}.{mat_index:03d}"
+                
+                # Track the mapping to ensure uniqueness across all meshes
+                counter = 1
+                original_unique_name = unique_name
+                while unique_name in self.__mesh_name_map.values():
+                    unique_name = f"{original_unique_name}.{counter:03d}"
+                    counter += 1
+                self.__mesh_name_map[(mesh_obj_name, mat_index)] = unique_name
+                unique_material_names[mat_index] = unique_name
+            material_names = unique_material_names
 
         # export add UV
         bl_add_uvs = [i for i in base_mesh.uv_layers[1:] if not i.name.startswith("_")]
@@ -1157,7 +1198,7 @@ class __PmxExporter:
             for f in face_seq:
                 f.vertices.reverse()
 
-        return _Mesh(material_faces, shape_key_names, material_names)
+        return _Mesh(material_faces, shape_key_names, material_names, material_objects)
 
     def __loadMeshData(self, meshObj, bone_map):
         show_only_shape_key = meshObj.show_only_shape_key
@@ -1221,6 +1262,7 @@ class __PmxExporter:
 
         self.__scale = args.get("scale", 1.0)
         self.__disable_specular = args.get("disable_specular", False)
+        self.__create_per_mesh_materials = args.get("create_per_mesh_materials", False)
         sort_vertices = args.get("sort_vertices", "NONE")
         if sort_vertices != "NONE":
             self.__vertex_order_map = {"method": sort_vertices}
