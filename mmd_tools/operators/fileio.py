@@ -979,7 +979,7 @@ class ExportPmx(Operator, ExportHelper, PreferencesMixin):
             # Save export settings for quick export
             context.scene["mmd_tools_export_pmx_last_filepath"] = self.filepath
             context.scene["mmd_tools_export_pmx_last_scale"] = self.scale
-            context.scene["mmd_tools_export_pmx_last_copy_textures"] = self.copy_textures
+            context.scene["mmd_tools_export_pmx_last_copy_textures"] = self.copy_textures_mode
             context.scene["mmd_tools_export_pmx_last_sort_materials"] = self.sort_materials
             context.scene["mmd_tools_export_pmx_last_disable_specular"] = self.disable_specular
             context.scene["mmd_tools_export_pmx_last_visible_meshes_only"] = self.visible_meshes_only
@@ -1181,7 +1181,7 @@ class ExportPmxQuick(Operator):
             # Get last export settings from scene properties
             scene = context.scene
             scale = scene.get("mmd_tools_export_pmx_last_scale", 12.5)
-            copy_textures = scene.get("mmd_tools_export_pmx_last_copy_textures", True)
+            copy_textures_mode = scene.get("mmd_tools_export_pmx_last_copy_textures", "SKIP_EXISTING")
             sort_materials = scene.get("mmd_tools_export_pmx_last_sort_materials", False)
             disable_specular = scene.get("mmd_tools_export_pmx_last_disable_specular", False)
             visible_meshes_only = scene.get("mmd_tools_export_pmx_last_visible_meshes_only", False)
@@ -1235,7 +1235,7 @@ class ExportPmxQuick(Operator):
                     meshes=meshes,
                     rigid_bodies=FnModel.iterate_rigid_body_objects(root),
                     joints=FnModel.iterate_joint_objects(root),
-                    copy_textures=copy_textures,
+                    copy_textures_mode=copy_textures_mode,
                     overwrite_bone_morphs_from_action_pose=overwrite_bone_morphs_from_action_pose,
                     translate_in_presets=translate_in_presets,
                     sort_materials=sort_materials,
