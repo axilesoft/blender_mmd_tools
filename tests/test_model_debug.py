@@ -1,10 +1,12 @@
+# Copyright 2025 MMD Tools authors
+# This file is part of MMD Tools.
 
 import logging
 import os
 import unittest
 
 import bpy
-from bl_ext.user_default.mmd_tools.core.model import FnModel, Model
+from bl_ext.blender_org.mmd_tools.core.model import FnModel, Model
 
 TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 SAMPLES_DIR = os.path.join(os.path.dirname(TESTS_DIR), "samples")
@@ -20,16 +22,15 @@ class TestModelDebug(unittest.TestCase):
 
     def setUp(self):
         """Set up testing environment"""
-        # Set logging level
         logger = logging.getLogger()
         logger.setLevel("INFO")  # Set to INFO to see validation messages
 
         # Clean scene and create a new MMD model
-        bpy.ops.wm.read_homefile()
+        bpy.ops.wm.read_homefile(use_empty=True)
         pref = getattr(bpy.context, "preferences", None) or bpy.context.user_preferences
         if not pref.addons.get("mmd_tools", None):
             addon_enable = bpy.ops.wm.addon_enable if "addon_enable" in dir(bpy.ops.wm) else bpy.ops.preferences.addon_enable
-            addon_enable(module="bl_ext.user_default.mmd_tools")  # make sure addon 'mmd_tools' is enabled
+            addon_enable(module="bl_ext.blender_org.mmd_tools")  # make sure addon 'mmd_tools' is enabled
 
         # Create test model
         self.model_name = "Test Model"
@@ -155,7 +156,7 @@ class TestModelDebug(unittest.TestCase):
         img3.filepath = "/path/missing.png"
 
         # Add texture nodes
-        for mat, img in zip([mat1, mat2], [img1, img2]):
+        for mat, img in zip([mat1, mat2], [img1, img2], strict=False):
             nodes = mat.node_tree.nodes
             tex_node = nodes.new("ShaderNodeTexImage")
             tex_node.image = img
@@ -169,7 +170,7 @@ class TestModelDebug(unittest.TestCase):
     # Test Methods
     # ********************************************
 
-    def test_1_validate_bone_limits(self):
+    def test_1_validate_bones(self):
         """Test if bone validation runs without errors"""
         print()
         self.__create_test_bone_with_invalid_name()
@@ -178,7 +179,7 @@ class TestModelDebug(unittest.TestCase):
         bpy.context.view_layer.objects.active = self.root_object
 
         # Run validation using operator
-        result = bpy.ops.mmd_tools.validate_bone_limits()
+        result = bpy.ops.mmd_tools.validate_bones()
 
         # Check if the operation completed
         self.assertEqual(set(result), {"FINISHED"})
@@ -244,7 +245,7 @@ class TestModelDebug(unittest.TestCase):
         bpy.context.view_layer.objects.active = self.root_object
 
         # First validate to get initial state
-        bpy.ops.mmd_tools.validate_bone_limits()
+        bpy.ops.mmd_tools.validate_bones()
         before_fix = bpy.context.scene.mmd_validation_results
         print("Before fix:")
         print(before_fix)
@@ -263,7 +264,7 @@ class TestModelDebug(unittest.TestCase):
         print()
 
         # Run validation again to see if issues were fixed
-        bpy.ops.mmd_tools.validate_bone_limits()
+        bpy.ops.mmd_tools.validate_bones()
         after_fix = bpy.context.scene.mmd_validation_results
         print("After fix:")
         print(after_fix)
@@ -345,4 +346,4 @@ if __name__ == "__main__":
     import sys
 
     sys.argv = [__file__] + (sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else [])
-    unittest.main()
+    unittest.main(verbosity=1, exit=True)

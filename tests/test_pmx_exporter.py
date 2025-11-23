@@ -1,14 +1,16 @@
+# Copyright 2025 MMD Tools authors
+# This file is part of MMD Tools.
 
+import logging
+import math
 import os
 import shutil
 import unittest
-from math import pi
 
 import bpy
-from bl_ext.user_default.mmd_tools.core import pmx
-from bl_ext.user_default.mmd_tools.core.model import Model
-from bl_ext.user_default.mmd_tools.core.pmd.importer import import_pmd_to_pmx
-from bl_ext.user_default.mmd_tools.core.pmx.importer import PMXImporter
+from bl_ext.blender_org.mmd_tools.core import pmx
+from bl_ext.blender_org.mmd_tools.core.pmd.importer import import_pmd_to_pmx
+from bl_ext.blender_org.mmd_tools.core.pmx.importer import PMXImporter
 from mathutils import Euler, Vector
 
 TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -18,9 +20,7 @@ SAMPLES_DIR = os.path.join(os.path.dirname(TESTS_DIR), "samples")
 class TestPmxExporter(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        """
-        Clean up output from previous tests
-        """
+        """Clean up output from previous tests"""
         output_dir = os.path.join(TESTS_DIR, "output")
         for item in os.listdir(output_dir):
             if item.endswith(".OUTPUT"):
@@ -32,13 +32,9 @@ class TestPmxExporter(unittest.TestCase):
                 shutil.rmtree(item_fp)
 
     def setUp(self):
-        """ """
-        import logging
-
+        """Set up testing environment"""
         logger = logging.getLogger()
         logger.setLevel("ERROR")
-        # logger.setLevel('DEBUG')
-        # logger.setLevel('INFO')
 
     # ********************************************
     # Utils
@@ -50,19 +46,28 @@ class TestPmxExporter(unittest.TestCase):
     def __vector_error(self, vec0, vec1):
         return (Vector(vec0) - Vector(vec1)).length
 
+    def __tuple_error(self, tuple0, tuple1):
+        """
+        Calculate the maximum absolute difference between two tuples of numbers.
+        Returns 0.0 if both tuples are empty (considered equal).
+        """
+        if len(tuple0) != len(tuple1):
+            raise ValueError(f"Tuple lengths mismatch: {len(tuple0)} vs {len(tuple1)}")
+        if not tuple0 and not tuple1:  # Both tuples are empty
+            return 0.0  # Empty tuples are considered equal
+        return max(abs(a - b) for a, b in zip(tuple0, tuple1, strict=False))
+
     def __quaternion_error(self, quat0, quat1):
-        angle = quat0.rotation_difference(quat1).angle % pi
+        angle = quat0.rotation_difference(quat1).angle % math.pi
         assert angle >= 0
-        return min(angle, pi - angle)
+        return min(angle, math.pi - angle)
 
     # ********************************************
     # Header & Informations
     # ********************************************
 
     def __check_pmx_header_info(self, source_model, result_model, import_types):
-        """
-        Test pmx model info, header
-        """
+        """Test pmx model info, header"""
         # Informations ================
 
         self.assertEqual(source_model.name, result_model.name)
@@ -112,16 +117,14 @@ class TestPmxExporter(unittest.TestCase):
         return tex_id if is_shared else self.__get_texture(tex_id, textures)
 
     def __check_pmx_mesh(self, source_model, result_model):
-        """
-        Test pmx textures, materials, vertices, faces
-        """
+        """Test pmx textures, materials, vertices, faces"""
         # textures ====================
         # TODO
 
         source_textures = self.__get_pmx_textures(source_model.textures)
         result_textures = self.__get_pmx_textures(result_model.textures)
         self.assertEqual(len(source_textures), len(result_textures))
-        for tex0, tex1 in zip(sorted(source_textures), sorted(result_textures)):
+        for tex0, tex1 in zip(sorted(source_textures), sorted(result_textures), strict=False):
             self.assertEqual(tex0, tex1)
 
         # materials ===================
@@ -130,7 +133,7 @@ class TestPmxExporter(unittest.TestCase):
         result_materials = result_model.materials
         self.assertEqual(len(source_materials), len(result_materials))
 
-        for mat0, mat1 in zip(source_materials, result_materials):
+        for mat0, mat1 in zip(source_materials, result_materials, strict=False):
             msg = mat0.name
             self.assertEqual(mat0.name, mat1.name, msg)
             self.assertEqual(mat0.name_e, mat1.name_e, msg)
@@ -173,15 +176,16 @@ class TestPmxExporter(unittest.TestCase):
         result_faces = result_model.faces
         self.assertEqual(len(source_faces), len(result_faces))
 
-        for f0, f1 in zip(source_faces, result_faces):
+        for f0, f1 in zip(source_faces, result_faces, strict=False):
             seq0 = [source_vertices[i] for i in f0]
             seq1 = [result_vertices[i] for i in f1]
-            for v0, v1 in zip(seq0, seq1):
+            for v0, v1 in zip(seq0, seq1, strict=False):
                 self.assertLess(self.__vector_error(v0.co, v1.co), 1e-6)
+                # self.assertLess(self.__vector_error(v0.normal, v1.normal), 1e-2)  # Blender normal vectors can have relatively large discrepancies, so we allow an error tolerance up to 1e-2
                 self.assertLess(self.__vector_error(v0.uv, v1.uv), 1e-6)
-                # self.assertLess(self.__vector_error(v0.normal, v1.normal), 1e-3)
+                for uv0, uv1 in zip(v0.additional_uvs, v1.additional_uvs, strict=False):
+                    self.assertLess(self.__tuple_error(uv0, uv1), 1e-6)
 
-                self.assertEqual(v0.additional_uvs, v1.additional_uvs)
                 self.assertEqual(v0.edge_scale, v1.edge_scale)
                 # self.assertEqual(v0.weight.weights, v1.weight.weights)
                 # self.assertEqual(v0.weight.bones, v1.weight.bones)
@@ -212,9 +216,7 @@ class TestPmxExporter(unittest.TestCase):
         return displayConnection
 
     def __check_pmx_bones(self, source_model, result_model):
-        """
-        Test pmx bones
-        """
+        """Test pmx bones"""
         source_bones = source_model.bones
         result_bones = result_model.bones
         self.assertEqual(len(source_bones), len(result_bones))
@@ -224,7 +226,7 @@ class TestPmxExporter(unittest.TestCase):
         bone_order1 = [x.name for x in result_bones]
         self.assertEqual(bone_order0, bone_order1)
 
-        for bone0, bone1 in zip(source_bones, result_bones):
+        for bone0, bone1 in zip(source_bones, result_bones, strict=False):
             msg = bone0.name
             self.assertEqual(bone0.name, bone1.name, msg)
             self.assertEqual(bone0.name_e, bone1.name_e, msg)
@@ -272,7 +274,7 @@ class TestPmxExporter(unittest.TestCase):
             self.assertEqual(bone0.loopCount, bone1.loopCount, msg)
             self.assertEqual(bone0.rotationConstraint, bone1.rotationConstraint, msg)
             self.assertEqual(len(bone0.ik_links), len(bone1.ik_links), msg)
-            for link0, link1 in zip(bone0.ik_links, bone1.ik_links):
+            for link0, link1 in zip(bone0.ik_links, bone1.ik_links, strict=False):
                 target0 = self.__get_bone_name(link0.target, source_bones)
                 target1 = self.__get_bone_name(link1.target, result_bones)
                 self.assertEqual(target0, target1, msg)
@@ -291,7 +293,7 @@ class TestPmxExporter(unittest.TestCase):
                 else:
                     self.assertEqual(minimumAngle0, minimumAngle1, msg)
 
-        for bone0, bone1 in zip(source_bones, result_bones):
+        for bone0, bone1 in zip(source_bones, result_bones, strict=False):
             msg = bone0.name
             displayConnection0 = self.__get_bone_display_connection(bone0, source_bones)
             displayConnection1 = self.__get_bone_display_connection(bone1, result_bones)
@@ -315,9 +317,7 @@ class TestPmxExporter(unittest.TestCase):
         return rigid_id
 
     def __check_pmx_physics(self, source_model, result_model):
-        """
-        Test pmx rigids, joints
-        """
+        """Test pmx rigids, joints"""
         # rigids ======================
 
         source_rigids = source_model.rigids
@@ -325,9 +325,9 @@ class TestPmxExporter(unittest.TestCase):
         self.assertEqual(len(source_rigids), len(result_rigids))
 
         source_bones = source_model.bones
-        result_bones = result_model.bones
+        # result_bones = result_model.bones
 
-        for rigid0, rigid1 in zip(source_rigids, result_rigids):
+        for rigid0, rigid1 in zip(source_rigids, result_rigids, strict=False):
             msg = rigid0.name
             self.assertEqual(rigid0.name, rigid1.name, msg)
             self.assertEqual(rigid0.name_e, rigid1.name_e, msg)
@@ -364,7 +364,7 @@ class TestPmxExporter(unittest.TestCase):
         result_joints = result_model.joints
         self.assertEqual(len(source_joints), len(result_joints))
 
-        for joint0, joint1 in zip(source_joints, result_joints):
+        for joint0, joint1 in zip(source_joints, result_joints, strict=False):
             msg = joint0.name
             self.assertEqual(joint0.name, joint1.name, msg)
             self.assertEqual(joint0.name_e, joint1.name_e, msg)
@@ -402,9 +402,7 @@ class TestPmxExporter(unittest.TestCase):
         return _dummy
 
     def __check_pmx_morphs(self, source_model, result_model):
-        """
-        Test pmx morphs
-        """
+        """Test pmx morphs"""
         source_morphs = source_model.morphs
         result_morphs = result_model.morphs
         self.assertEqual(len(source_morphs), len(result_morphs))
@@ -427,8 +425,8 @@ class TestPmxExporter(unittest.TestCase):
         source = source_table.get(pmx.VertexMorph, [])
         result = result_table.get(pmx.VertexMorph, [])
         self.assertEqual(len(source), len(result))
-        for m0, m1 in zip(source, result):
-            msg = "VertexMorph %s" % m0.name
+        for m0, m1 in zip(source, result, strict=False):
+            msg = f"VertexMorph {m0.name}"
             self.assertEqual(m0.name, m1.name, msg)
             self.assertEqual(m0.name_e, m1.name_e, msg)
             self.assertEqual(m0.category, m1.category, msg)
@@ -440,8 +438,8 @@ class TestPmxExporter(unittest.TestCase):
         source = source_table.get(pmx.UVMorph, [])
         result = result_table.get(pmx.UVMorph, [])
         self.assertEqual(len(source), len(result))
-        for m0, m1 in zip(source, result):
-            msg = "UVMorph %s" % m0.name
+        for m0, m1 in zip(source, result, strict=False):
+            msg = f"UVMorph {m0.name}"
             self.assertEqual(m0.name, m1.name, msg)
             self.assertEqual(m0.name_e, m1.name_e, msg)
             self.assertEqual(m0.category, m1.category, msg)
@@ -458,8 +456,8 @@ class TestPmxExporter(unittest.TestCase):
         source = source_table.get(pmx.BoneMorph, [])
         result = result_table.get(pmx.BoneMorph, [])
         self.assertEqual(len(source), len(result))
-        for m0, m1 in zip(source, result):
-            msg = "BoneMorph %s" % m0.name
+        for m0, m1 in zip(source, result, strict=False):
+            msg = f"BoneMorph {m0.name}"
             self.assertEqual(m0.name, m1.name, msg)
             self.assertEqual(m0.name_e, m1.name_e, msg)
             self.assertEqual(m0.category, m1.category, msg)
@@ -467,7 +465,7 @@ class TestPmxExporter(unittest.TestCase):
             source_offsets = [m for m in m0.offsets if 0 <= m.index < len(source_bones)]
             result_offsets = m1.offsets
             self.assertEqual(len(source_offsets), len(result_offsets), msg)
-            for s0, s1 in zip(source_offsets, result_offsets):
+            for s0, s1 in zip(source_offsets, result_offsets, strict=False):
                 bone0 = source_bones[s0.index]
                 bone1 = result_bones[s1.index]
                 self.assertEqual(bone0.name, bone1.name, msg)
@@ -482,15 +480,15 @@ class TestPmxExporter(unittest.TestCase):
         source = source_table.get(pmx.MaterialMorph, [])
         result = result_table.get(pmx.MaterialMorph, [])
         self.assertEqual(len(source), len(result))
-        for m0, m1 in zip(source, result):
-            msg = "MaterialMorph %s" % m0.name
+        for m0, m1 in zip(source, result, strict=False):
+            msg = f"MaterialMorph {m0.name}"
             self.assertEqual(m0.name, m1.name, msg)
             self.assertEqual(m0.name_e, m1.name_e, msg)
             self.assertEqual(m0.category, m1.category, msg)
             source_offsets = m0.offsets
             result_offsets = m1.offsets
             self.assertEqual(len(source_offsets), len(result_offsets), msg)
-            for s0, s1 in zip(source_offsets, result_offsets):
+            for s0, s1 in zip(source_offsets, result_offsets, strict=False):
                 mat0 = self.__get_material(s0.index, source_materials)
                 mat1 = self.__get_material(s1.index, result_materials)
                 self.assertEqual(mat0.name, mat1.name, msg)
@@ -510,8 +508,8 @@ class TestPmxExporter(unittest.TestCase):
         source = source_table.get(pmx.GroupMorph, [])
         result = result_table.get(pmx.GroupMorph, [])
         self.assertEqual(len(source), len(result))
-        for m0, m1 in zip(source, result):
-            msg = "GroupMorph %s" % m0.name
+        for m0, m1 in zip(source, result, strict=False):
+            msg = f"GroupMorph {m0.name}"
             self.assertEqual(m0.name, m1.name, msg)
             self.assertEqual(m0.name_e, m1.name_e, msg)
             self.assertEqual(m0.category, m1.category, msg)
@@ -519,7 +517,7 @@ class TestPmxExporter(unittest.TestCase):
             source_offsets = [m for m in m0.offsets if 0 <= m.morph < len(source_morphs)]
             result_offsets = m1.offsets
             self.assertEqual(len(source_offsets), len(result_offsets), msg)
-            for s0, s1 in zip(source_offsets, result_offsets):
+            for s0, s1 in zip(source_offsets, result_offsets, strict=False):
                 morph0 = source_morphs[s0.morph]
                 morph1 = result_morphs[s1.morph]
                 self.assertEqual(morph0.name, morph1.name, msg)
@@ -531,14 +529,12 @@ class TestPmxExporter(unittest.TestCase):
     # ********************************************
 
     def __check_pmx_display_data(self, source_model, result_model, check_morphs):
-        """
-        Test pmx display
-        """
+        """Test pmx display"""
         source_display = source_model.display
         result_display = result_model.display
         self.assertEqual(len(source_display), len(result_display))
 
-        for source, result in zip(source_display, result_display):
+        for source, result in zip(source_display, result_display, strict=False):
             self.assertEqual(source.name, result.name)
             self.assertEqual(source.name_e, result.name_e)
             self.assertEqual(source.isSpecial, result.isSpecial)
@@ -549,7 +545,7 @@ class TestPmxExporter(unittest.TestCase):
             result_items = result.data
 
             self.assertEqual(len(source_items), len(result_items))
-            for item0, item1 in zip(source_items, result_items):
+            for item0, item1 in zip(source_items, result_items, strict=False):
                 disp_type0, index0 = item0
                 disp_type1, index1 = item1
                 self.assertEqual(disp_type0, disp_type1)
@@ -583,23 +579,20 @@ class TestPmxExporter(unittest.TestCase):
         for file_type in file_types:
             file_ext = "." + file_type
             for root, dirs, files in os.walk(os.path.join(SAMPLES_DIR, file_type)):
-                for name in files:
-                    if name.lower().endswith(file_ext):
-                        ret.append(os.path.join(root, name))
+                ret.extend(os.path.join(root, name) for name in files if name.lower().endswith(file_ext))
         return ret
 
     def __enable_mmd_tools(self):
-        bpy.ops.wm.read_homefile()  # reload blender startup file
+        bpy.ops.wm.read_homefile(use_empty=True)
         pref = getattr(bpy.context, "preferences", None) or bpy.context.user_preferences
         if not pref.addons.get("mmd_tools", None):
             addon_enable = bpy.ops.wm.addon_enable if "addon_enable" in dir(bpy.ops.wm) else bpy.ops.preferences.addon_enable
-            addon_enable(module="bl_ext.user_default.mmd_tools")  # make sure addon 'mmd_tools' is enabled
+            addon_enable(module="bl_ext.blender_org.mmd_tools")  # make sure addon 'mmd_tools' is enabled
 
     def test_pmx_exporter(self):
-        """ """
         input_files = self.__list_sample_files(("pmd", "pmx"))
         if len(input_files) < 1:
-            self.fail("required pmd/pmx sample file(s)!")
+            self.fail("required PMX/PMD sample file(s)!")
 
         check_types = set()
         check_types.add("MESH")
@@ -610,10 +603,10 @@ class TestPmxExporter(unittest.TestCase):
 
         import_types = self.__get_import_types(check_types)
 
-        print("\n    Check: %s | Import: %s" % (str(check_types), str(import_types)))
+        print(f"\n    Check: {str(check_types)} | Import: {str(import_types)}")
 
         for test_num, filepath in enumerate(input_files):
-            print("\n     - %2d/%d | filepath: %s" % (test_num + 1, len(input_files), filepath))
+            print(f"\n     - {test_num + 1:2d}/{len(input_files)} | filepath: {filepath}")
             try:
                 self.__enable_mmd_tools()
                 file_loader = pmx.load
@@ -628,33 +621,27 @@ class TestPmxExporter(unittest.TestCase):
                 )
                 # bpy.context.scene.update()
                 bpy.context.scene.frame_set(bpy.context.scene.frame_current)
-                import logging
-
-                logger = logging.getLogger()
-                # logger.setLevel('ERROR')
-                # logger.setLevel('DEBUG')
-                logger.setLevel("INFO")
             except Exception:
-                self.fail("Exception happened during import %s" % filepath)
+                self.fail(f"Exception happened during import {filepath}")
             else:
                 try:
-                    output_pmx = os.path.join(TESTS_DIR, "output", "%d.pmx" % test_num)
+                    output_pmx = os.path.join(TESTS_DIR, "output", f"{test_num}.pmx")
                     bpy.ops.mmd_tools.export_pmx(
                         filepath=output_pmx,
-                        scale=1,
-                        copy_textures=False,
+                        scale=1.0,
                         sort_materials=False,
+                        sort_vertices="NONE",
                         log_level="ERROR",
                     )
                 except Exception:
-                    self.fail("Exception happened during export %s" % output_pmx)
+                    self.fail(f"Exception happened during export {output_pmx}")
                 else:
                     self.assertTrue(os.path.isfile(output_pmx), "File was not created")  # Is this a race condition?
 
                     try:
                         result_model = pmx.load(output_pmx)
-                    except:
-                        self.fail("Failed to load output file %s" % output_pmx)
+                    except Exception:
+                        self.fail(f"Failed to load output file {output_pmx}")
 
                     self.__check_pmx_header_info(source_model, result_model, import_types)
 
@@ -678,4 +665,4 @@ if __name__ == "__main__":
     import sys
 
     sys.argv = [__file__] + (sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else [])
-    unittest.main()
+    unittest.main(verbosity=1, exit=True)

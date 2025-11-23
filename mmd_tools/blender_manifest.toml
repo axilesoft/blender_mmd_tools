@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "mmd_tools"
-version = "4.3.6"
+version = "4.5.2"
 name = "MMD Tools"
 tagline = "Utility tools for MMD model editing"
 maintainer = "UuuNyaa <uuunyaa@gmail.com>"
@@ -22,10 +22,10 @@ tags = [
 ]
 
 blender_version_min = "4.2.0"
-blender_version_max = "5.0.0"
+blender_version_max = "6.0.0"
 
 license = ["SPDX:GPL-3.0-or-later"]
-copyright = ["2021 UuuNyaa", "2014-2022 powroupi", "2012-2015 sugiany"]
+copyright = ["2025 MMD & Blender Team", "2021-2024 UuuNyaa", "2014-2022 powroupi", "2012-2015 sugiany"]
 
 ## Optional: add-ons can list which resources they will require:
 ## * files (for access of any filesystem operations)
@@ -41,7 +41,7 @@ copyright = ["2021 UuuNyaa", "2014-2022 powroupi", "2012-2015 sugiany"]
 ## Keep this a single short sentence without a period (.) at the end.
 ## For longer explanations use the documentation or detail page.
 [permissions]
-files = "Import/export PMD/PMX/VMD/VPD from/to disk"
+files = "Import/export PMX/PMD/VMD/VPD from/to disk"
 
 # Optional: build settings.
 # https://docs.blender.org/manual/en/dev/advanced/extensions/command_line_arguments.html#command-line-args-extension-build

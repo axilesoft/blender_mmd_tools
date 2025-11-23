@@ -69,7 +69,7 @@ class FnBone:
     @staticmethod
     def __get_selected_pose_bones(armature_object: bpy.types.Object) -> Iterable[bpy.types.PoseBone]:
         if armature_object.mode == "EDIT":
-            bpy.ops.object.mode_set(mode="OBJECT") # update selected bones
+            bpy.ops.object.mode_set(mode="OBJECT")  # update selected bones
             bpy.ops.object.mode_set(mode="EDIT")  # back to edit mode
         context_selected_bones = bpy.context.selected_pose_bones or bpy.context.selected_bones or []
         bones = armature_object.pose.bones
@@ -109,7 +109,7 @@ class FnBone:
 
     @staticmethod
     def __is_special_bone_collection(bone_collection: bpy.types.BoneCollection) -> bool:
-        return BONE_COLLECTION_CUSTOM_PROPERTY_VALUE_SPECIAL == bone_collection.get(BONE_COLLECTION_CUSTOM_PROPERTY_NAME)
+        return bone_collection.get(BONE_COLLECTION_CUSTOM_PROPERTY_NAME) == BONE_COLLECTION_CUSTOM_PROPERTY_VALUE_SPECIAL
 
     @staticmethod
     def __set_bone_collection_to_special(bone_collection: bpy.types.BoneCollection, is_visible: bool):
@@ -118,7 +118,7 @@ class FnBone:
 
     @staticmethod
     def __is_normal_bone_collection(bone_collection: bpy.types.BoneCollection) -> bool:
-        return BONE_COLLECTION_CUSTOM_PROPERTY_VALUE_NORMAL == bone_collection.get(BONE_COLLECTION_CUSTOM_PROPERTY_NAME)
+        return bone_collection.get(BONE_COLLECTION_CUSTOM_PROPERTY_NAME) == BONE_COLLECTION_CUSTOM_PROPERTY_VALUE_NORMAL
 
     @staticmethod
     def __set_bone_collection_to_normal(bone_collection: bpy.types.BoneCollection):
@@ -217,7 +217,7 @@ class FnBone:
             used_frame_index.add(display_item_frames.find(bone_collection_name))
 
             ItemOp.resize(display_item_frame.data, len(bone_collection.bones))
-            for display_item, bone in zip(display_item_frame.data, bone_collection.bones):
+            for display_item, bone in zip(display_item_frame.data, bone_collection.bones, strict=False):
                 display_item.type = "BONE"
                 display_item.name = bone.name
 
@@ -326,10 +326,7 @@ class FnBone:
 
     @staticmethod
     def apply_auto_bone_roll(armature):
-        bone_names = []
-        for b in armature.pose.bones:
-            if not b.is_mmd_shadow_bone and not b.mmd_bone.enabled_local_axes and FnBone.has_auto_local_axis(b.mmd_bone.name_j):
-                bone_names.append(b.name)
+        bone_names = [b.name for b in armature.pose.bones if not b.is_mmd_shadow_bone and not b.mmd_bone.enabled_local_axes and FnBone.has_auto_local_axis(b.mmd_bone.name_j)]
         with bpyutils.edit_object(armature) as data:
             bone: bpy.types.EditBone
             for bone in data.edit_bones:
@@ -371,6 +368,9 @@ class FnBone:
 
     @staticmethod
     def clean_additional_transformation(armature_object: bpy.types.Object):
+        if armature_object.type != "ARMATURE" or armature_object.pose is None:
+            return
+
         # clean constraints
         p_bone: bpy.types.PoseBone
         for p_bone in armature_object.pose.bones:
@@ -454,6 +454,35 @@ class FnBone:
                 return
             c = TransformConstraintOp.create(constraints, name, map_type)
             c.target = p_bone.id_data
+            # NOTE: In MMD:
+            # Negative influence (influence < 0) is used to cancel rotation (e.g., 肩C, 目戻, 腰キャンセル).
+            # Positive influence (influence >= 0) is used to add rotation.
+            # To achieve correct inverse rotation (for influence < 0) in Blender, we use a Transformation constraint with the following settings:
+            #     Set from_rotation_mode to ZYX
+            #     Map from_min/from_max to an inverted to_min/to_max range (e.g., -180° to +180° -> +180° to -180°)
+            #     Set to_euler_order to XYZ
+            #     Set mix_mode_rot to AFTER
+            #     Set target_space to LOCAL
+            #     Set owner_space to LOCAL
+            # See https://github.com/MMD-Blender/blender_mmd_tools/issues/242
+            # We don't use Copy Rotation for the following reasons:
+            # Copy Rotation tends to jump at ±180° boundary. Transformation is more stable.
+            # Also, the Invert option of a Copy Rotation constraint cannot directly produce correct inverse rotation.
+            # It requires using three Copy Rotation constraints, stacked in order (X, then Y, then Z):
+            #     The first copies and inverts only the X axis
+            #     The second copies and inverts only the Y axis
+            #     The third copies and inverts only the Z axis
+            #     For each Copy Rotation constraint:
+            #         Set euler_order to XYZ
+            #         Set mix_mode to AFTER
+            #         Set target_space to LOCAL
+            #         Set owner_space to LOCAL
+            if influence < 0:
+                c.from_rotation_mode = "ZYX"
+            else:
+                c.from_rotation_mode = "XYZ"
+            c.to_euler_order = "XYZ"  # Explicitly set to "XYZ" instead of "AUTO"
+            c.mix_mode_rot = "AFTER"  # Use "AFTER" instead of "ADD" to match MMD behavior
             shadow_bone.add_constraint(c)
             TransformConstraintOp.update_min_max(c, value, influence)
 

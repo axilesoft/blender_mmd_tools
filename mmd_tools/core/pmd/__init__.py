@@ -69,10 +69,16 @@ class FileReadStream(FileStream):
         return v
 
     def readStr(self, size):
+        r"""Read a string of given byte size from file, decode it as cp932.
+        Example:
+            original = "あ"
+            buf = b"\x82\xa0\x00\xfd\xfd\xfd\xfd\xfd\xfd\xfd\xfd\xfd\xfd\xfd\xfd\xfd\xfd\xfd\xfd\xfd"
+            result = "あ"
+        """
         buf = self.__fin.read(size)
         if buf[0] == b"\xfd":
             return ""
-        return buf.split(b"\x00")[0].decode("shift_jis", errors="replace")
+        return buf.split(b"\x00")[0].decode("cp932", errors="replace")
 
     def readFloat(self):
         (v,) = struct.unpack("<f", self.__fin.read(4))
@@ -158,11 +164,11 @@ class Material:
         tex_path = fs.readStr(20)
         tex_path = tex_path.replace("\\", os.path.sep)
         t = tex_path.split("*")
-        if not re.search(r"\.sp([ha])$", t[0], flags=re.I):
+        if not re.search(r"\.sp([ha])$", t[0], flags=re.IGNORECASE):
             self.texture_path = t.pop(0)
         if len(t) > 0:
             self.sphere_path = t.pop(0)
-            if "aA".find(self.sphere_path[-1]) != -1:
+            if self.sphere_path[-1] in "aA":
                 self.sphere_mode = 2
 
 
@@ -202,7 +208,7 @@ class IK:
         self.ik_child_bones = []
 
     def __str__(self):
-        return "<IK bone: %d, target: %d, chain: %s, iter: %d, weight: %f, ik_children: %s" % (self.bone, self.target_bone, self.ik_chain, self.iterations, self.control_weight, self.ik_child_bones)
+        return f"<IK bone: {self.bone}, target: {self.target_bone}, chain: {self.ik_chain}, iter: {self.iterations}, weight: {self.weight}, ik_children: {self.ik_children}"
 
     def load(self, fs):
         self.bone = fs.readUnsignedShort()
@@ -615,8 +621,8 @@ def load(path):
         model = Model()
         try:
             model.load(fs)
-        except struct.error as e:
-            logging.error(" * Corrupted file: %s", e)
+        except struct.error:
+            logging.exception(" * Corrupted file")
             # raise
 
         logging.info(" Finish loading.")

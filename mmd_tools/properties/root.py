@@ -5,7 +5,6 @@
 
 import bpy
 
-from .. import utils
 from ..bpyutils import FnContext
 from ..core.material import FnMaterial
 from ..core.model import FnModel
@@ -14,11 +13,13 @@ from . import patch_library_overridable
 from .morph import BoneMorph, GroupMorph, MaterialMorph, UVMorph, VertexMorph
 from .translations import MMDTranslation
 
+IS_BLENDER_50_UP = bpy.app.version >= (5, 0)
+
 
 def __driver_variables(constraint: bpy.types.Constraint, path: str, index=-1):
     d = constraint.driver_add(path, index)
     variables = d.driver.variables
-    for x in variables:
+    for x in reversed(variables):
         variables.remove(x)
     return d.driver, variables
 
@@ -47,17 +48,17 @@ def _toggleUsePropertyDriver(self: "MMDRoot", _context):
     if self.use_property_driver:
         for ik, (b, c) in ik_map.items():
             driver, variables = __driver_variables(c, "influence")
-            driver.expression = "%s" % __add_single_prop(variables, ik.id_data, ik.path_from_id("mmd_ik_toggle"), "use_ik").name
+            driver.expression = f"{__add_single_prop(variables, ik.id_data, ik.path_from_id('mmd_ik_toggle'), 'use_ik').name}"
             b = b if c.use_tail else b.parent
             for b in ([b] + b.parent_recursive)[: c.chain_count]:
                 c = next((c for c in b.constraints if c.type == "LIMIT_ROTATION" and not c.mute), None)
                 if c:
                     driver, variables = __driver_variables(c, "influence")
-                    driver.expression = "%s" % __add_single_prop(variables, ik.id_data, ik.path_from_id("mmd_ik_toggle"), "use_ik").name
+                    driver.expression = f"{__add_single_prop(variables, ik.id_data, ik.path_from_id('mmd_ik_toggle'), 'use_ik').name}"
         for i in FnModel.iterate_mesh_objects(root_object):
             for prop_hide in ("hide_viewport", "hide_render"):
                 driver, variables = __driver_variables(i, prop_hide)
-                driver.expression = "not %s" % __add_single_prop(variables, root_object, "mmd_root.show_meshes", "show").name
+                driver.expression = f"not {__add_single_prop(variables, root_object, 'mmd_root.show_meshes', 'show').name}"
     else:
         for ik, (b, c) in ik_map.items():
             c.driver_remove("influence")
@@ -164,7 +165,7 @@ def _getVisibilityOfMMDRigArmature(prop: "MMDRoot"):
     if prop.id_data.mmd_type != "ROOT":
         return False
     arm = FnModel.find_armature_object(prop.id_data)
-    return arm and not arm.hide_get()
+    return arm is not None and not arm.hide_get()
 
 
 def _setActiveRigidbodyObject(prop: "MMDRoot", v: int):
@@ -375,6 +376,18 @@ class MMDRoot(bpy.types.PropertyGroup):
         update=_toggleShowNamesOfJoints,
     )
 
+    show_japanese_name: bpy.props.BoolProperty(
+        name="Japanese name",
+        description="Toggle Japanese name display",
+        default=True,
+    )
+
+    show_english_name: bpy.props.BoolProperty(
+        name="English name",
+        description="Toggle English name display",
+        default=True,
+    )
+
     use_toon_texture: bpy.props.BoolProperty(
         name="Use Toon Texture",
         description="Use toon texture",
@@ -540,6 +553,14 @@ class MMDRoot(bpy.types.PropertyGroup):
             prop.hide_viewport = value
 
     @staticmethod
+    def __get_pose_bone_select(prop: bpy.types.PoseBone) -> bool:
+        return prop.bone.select
+
+    @staticmethod
+    def __set_pose_bone_select(prop: bpy.types.PoseBone, value: bool) -> None:
+        prop.bone.select = value
+
+    @staticmethod
     def register():
         bpy.types.Object.mmd_type = patch_library_overridable(
             bpy.props.EnumProperty(
@@ -562,7 +583,7 @@ class MMDRoot(bpy.types.PropertyGroup):
                     ("SPRING_CONSTRAINT", "Spring Constraint", "", 53),
                     ("SPRING_GOAL", "Spring Goal", "", 54),
                 ],
-            )
+            ),
         )
         bpy.types.Object.mmd_root = patch_library_overridable(bpy.props.PointerProperty(type=MMDRoot))
 
@@ -575,7 +596,7 @@ class MMDRoot(bpy.types.PropertyGroup):
                     "ANIMATABLE",
                     "LIBRARY_EDITABLE",
                 },
-            )
+            ),
         )
         bpy.types.Object.hide = patch_library_overridable(
             bpy.props.BoolProperty(
@@ -586,8 +607,23 @@ class MMDRoot(bpy.types.PropertyGroup):
                     "ANIMATABLE",
                     "LIBRARY_EDITABLE",
                 },
-            )
+            ),
         )
+
+        if not IS_BLENDER_50_UP:
+            bpy.types.PoseBone.select = patch_library_overridable(
+                bpy.props.BoolProperty(
+                    name="Select",
+                    description="Pose bone selection state (compatibility layer for Blender 4.x, forwards to bone.select)",
+                    get=MMDRoot.__get_pose_bone_select,
+                    set=MMDRoot.__set_pose_bone_select,
+                    options={
+                        "SKIP_SAVE",
+                        "ANIMATABLE",
+                        "LIBRARY_EDITABLE",
+                    },
+                ),
+            )
 
     @staticmethod
     def unregister():
@@ -595,3 +631,5 @@ class MMDRoot(bpy.types.PropertyGroup):
         del bpy.types.Object.select
         del bpy.types.Object.mmd_root
         del bpy.types.Object.mmd_type
+        if not IS_BLENDER_50_UP:
+            del bpy.types.PoseBone.select

@@ -236,8 +236,8 @@ class AddRigidBody(bpy.types.Operator):
     def execute(self, context):
         active_object = context.active_object
 
-        root_object = cast(bpy.types.Object, FnModel.find_root_object(active_object))
-        armature_object = cast(bpy.types.Object, FnModel.find_armature_object(root_object))
+        root_object = cast("bpy.types.Object", FnModel.find_root_object(active_object))
+        armature_object = cast("bpy.types.Object", FnModel.find_armature_object(root_object))
 
         if active_object != armature_object:
             FnContext.select_single_object(context, root_object).select_set(False)
@@ -441,9 +441,9 @@ class AddJoint(bpy.types.Operator):
 
     def execute(self, context):
         active_object = context.active_object
-        root_object = cast(bpy.types.Object, FnModel.find_root_object(active_object))
-        armature_object = cast(bpy.types.Object, FnModel.find_armature_object(root_object))
-        bones = cast(bpy.types.Armature, armature_object.data).bones
+        root_object = cast("bpy.types.Object", FnModel.find_root_object(active_object))
+        armature_object = cast("bpy.types.Object", FnModel.find_armature_object(root_object))
+        bones = cast("bpy.types.Armature", armature_object.data).bones
         bone_map: Dict[bpy.types.Object, Optional[bpy.types.Bone]] = {r: bones.get(r.mmd_rigid.bone, None) for r in FnModel.iterate_rigid_body_objects(root_object) if r.select_get()}
 
         # If only one rigid body is selected, create a joint at its location
@@ -551,7 +551,7 @@ class UpdateRigidBodyWorld(bpy.types.Operator):
                 if obj not in group.values():
                     group.link(obj)
                 return True
-            elif obj in group.values():
+            if obj in group.values():
                 group.unlink(obj)
             return False
 

@@ -1,6 +1,7 @@
 # Copyright 2014 MMD Tools authors
 # This file is part of MMD Tools.
 
+import logging
 from typing import List, Optional
 
 import bpy
@@ -57,7 +58,7 @@ class RigidBodyMaterial:
     @classmethod
     def getMaterial(cls, number):
         number = int(number)
-        material_name = "mmd_tools_rigid_%d" % (number)
+        material_name = f"mmd_tools_rigid_{number}"
         if material_name not in bpy.data.materials:
             mat = bpy.data.materials.new(material_name)
             color = cls.COLORS[number]
@@ -176,22 +177,23 @@ class FnRigidBody:
 
         x0, y0, z0 = obj.bound_box[0]
         x1, y1, z1 = obj.bound_box[6]
-        assert x1 >= x0 and y1 >= y0 and z1 >= z0
+        if not (x1 >= x0 and y1 >= y0 and z1 >= z0):
+            logging.warning("Rigid body '%s' has invalid bounding box coordinates, using default size", obj.name)
+            return (1.0, 1.0, 1.0)
 
         shape = obj.mmd_rigid.shape
         if shape == "SPHERE":
             radius = (z1 - z0) / 2
             return (radius, 0.0, 0.0)
-        elif shape == "BOX":
+        if shape == "BOX":
             x, y, z = (x1 - x0) / 2, (y1 - y0) / 2, (z1 - z0) / 2
             return (x, y, z)
-        elif shape == "CAPSULE":
+        if shape == "CAPSULE":
             diameter = x1 - x0
             radius = diameter / 2
             height = abs((z1 - z0) - diameter)
             return (radius, height, 0.0)
-        else:
-            raise ValueError(f"Invalid shape type: {shape}")
+        raise ValueError(f"Invalid shape type: {shape}")
 
     @staticmethod
     def new_joint_object(context: bpy.types.Context, parent_object: bpy.types.Object, empty_display_size: float) -> bpy.types.Object:
